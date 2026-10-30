@@ -1,3 +1,42 @@
+# RUBYS E-commerce Platform
+
+Premium Organic African Haircare.
+
+## Technology Stack
+
+- Next.js
+- TypeScript
+- Tailwind CSS
+- Shadcn UI
+- PostgreSQL
+- Prisma ORM
+- Docker
+
+## Local Development
+
+### 1. Install dependencies
+
+npm install
+
+### 2. Start PostgreSQL
+
+docker compose up -d
+
+### 3. Generate Prisma Client
+
+npx prisma generate
+
+### 4. Run database migrations
+
+npx prisma migrate dev
+
+### 5. Start application
+
+npm run dev
+
+Visit http://localhost:3000
+
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

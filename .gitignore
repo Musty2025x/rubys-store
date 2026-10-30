@@ -39,3 +39,27 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment variables
+.env
+.env.*
+
+# Generated Prisma client
+src/generated/prisma/
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
+
+
+Thumbs.db
