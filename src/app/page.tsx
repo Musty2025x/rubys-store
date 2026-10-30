@@ -1,6 +1,15 @@
 import Link from "next/link";
+import { cacheLife } from "next/cache";
 
-export default function Home() {
+async function getCurrentYear() {
+  "use cache";
+  cacheLife("max");
+  return new Date().getFullYear();
+}
+
+export default async function Home() {
+  const currentYear = await getCurrentYear();
+
   return (
     <main className="min-h-screen">
 
@@ -114,7 +123,7 @@ export default function Home() {
         </p>
 
         <p className="mt-8 text-xs text-[#76675d]">
-          © {new Date().getFullYear()} RUBYS. All rights reserved.
+          © {currentYear} RUBYS. All rights reserved.
         </p>
 
       </footer>
