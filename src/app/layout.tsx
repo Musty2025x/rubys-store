@@ -1,5 +1,7 @@
+
 import type { Metadata } from "next";
 import "./globals.css";
+import SiteShell from "@/components/layout/site-shell";
 
 export const metadata: Metadata = {
   title: {
@@ -7,8 +9,7 @@ export const metadata: Metadata = {
     template: "%s | RUBYS",
   },
   description:
-    "Discover premium organic African haircare products from RUBYS. Shop our haircare collection in Nigeria and internationally.",
-  applicationName: "RUBYS",
+    "Discover premium African haircare products from RUBYS.",
 };
 
 export default function RootLayout({
@@ -18,7 +19,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <SiteShell>{children}</SiteShell>
+      </body>
     </html>
   );
 }

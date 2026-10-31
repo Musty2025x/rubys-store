@@ -32,3 +32,23 @@ a {
   background: var(--brand-gold);
   color: white;
 }
+
+.admin-input {
+  width: 100%;
+  border: 1px solid #e5e5e5;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #171717;
+  background-color: white;
+  outline: none;
+  transition: border-color 150ms ease;
+}
+
+.admin-input:focus {
+  border-color: #737373;
+}
+
+.admin-input::placeholder {
+  color: #a3a3a3;
+}

@@ -7,10 +7,158 @@ datasource db {
   provider = "postgresql"
 }
 
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum InventoryMovementType {
+  RESERVATION
+  RELEASE
+  SALE
+  RESTOCK
+  ADJUSTMENT
+}
+
 model User {
   id        String   @id @default(cuid())
   name      String?
   email     String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  orders Order[]
+}
+
+model Product {
+  id               String    @id @default(cuid())
+  name             String
+  slug             String    @unique
+  sku              String?   @unique
+  description      String
+  category         String
+  price            Int
+  compareAtPrice   Int?
+  imageUrl         String
+  badge            String?
+  stockQuantity    Int       @default(0)
+  reservedQuantity Int       @default(0)
+  isActive         Boolean   @default(true)
+  isArchived       Boolean   @default(false)
+  archivedAt       DateTime?
+  isFeatured       Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  orderItems         OrderItem[]
+  inventoryMovements InventoryMovement[]
+
+  @@index([category])
+  @@index([isActive])
+  @@index([isFeatured])
+  @@index([isArchived])
+}
+
+model Order {
+  id          String @id @default(cuid())
+  orderNumber String @unique
+
+  // Optional account relationship.
+  // Guest customers do not need a User account.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Customer information
+  customerName  String
+  customerEmail String
+  customerPhone String
+
+  // Delivery information
+  shippingAddress    String
+  shippingAddress2   String?
+  shippingCity       String
+  shippingState      String
+  shippingPostalCode String?
+  deliveryNotes      String?
+
+  // Financial information (amounts in Nigerian Naira)
+  currency    String @default("NGN")
+  subtotal    Int
+  shippingFee Int    @default(0)
+  total       Int
+
+  // Order and payment tracking
+  status        OrderStatus   @default(PENDING)
+  paymentStatus PaymentStatus @default(UNPAID)
+
+  paymentReference String?
+
+  // Inventory reservation tracking
+  stockReserved        Boolean   @default(false)
+  reservationExpiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items              OrderItem[]
+  inventoryMovements InventoryMovement[]
+
+  @@index([customerEmail])
+  @@index([userId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([createdAt])
+  @@index([stockReserved, reservationExpiresAt])
+}
+
+model OrderItem {
+  id String @id @default(cuid())
+
+  orderId   String
+  productId String
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  // Product information at purchase time
+  productName String
+  productSlug String
+  quantity    Int
+  unitPrice   Int
+  lineTotal   Int
+
+  createdAt DateTime @default(now())
+
+  @@unique([orderId, productId])
+  @@index([productId])
+}
+
+model InventoryMovement {
+  id        String                @id @default(cuid())
+  productId String
+  orderId   String?
+  type      InventoryMovementType
+  quantity  Int
+  note      String?
+  createdAt DateTime              @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([orderId])
+  @@index([type])
+  @@index([createdAt])
 }
