@@ -1,10 +1,16 @@
-
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
+const connectionString =
+  process.env.DATABASE_URL_POOLED ?? process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("Database connection string is not configured.");
+}
+
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!,
+  connectionString,
 });
 
 const prisma = new PrismaClient({
@@ -22,7 +28,7 @@ const products = [
     imageUrl:
       "https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?auto=format&fit=crop&w=900&q=85",
     badge: "Bestseller",
-    stockQuantity: 0,
+    stockQuantity: 20,
     isActive: true,
     isFeatured: true,
   },
@@ -36,7 +42,7 @@ const products = [
     imageUrl:
       "https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?auto=format&fit=crop&w=900&q=85",
     badge: "New",
-    stockQuantity: 0,
+    stockQuantity: 11,
     isActive: true,
     isFeatured: false,
   },
@@ -49,7 +55,7 @@ const products = [
     price: 20000,
     imageUrl:
       "https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?auto=format&fit=crop&w=900&q=85",
-    stockQuantity: 0,
+    stockQuantity: 13,
     isActive: true,
     isFeatured: false,
   },
@@ -63,7 +69,7 @@ const products = [
     price: 12500,
     imageUrl:
       "https://images.unsplash.com/photo-1523293182086-7651a899d37f?auto=format&fit=crop&w=900&q=85",
-    stockQuantity: 0,
+    stockQuantity: 3,
     isActive: true,
     isFeatured: false,
   },

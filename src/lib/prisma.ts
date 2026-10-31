@@ -5,8 +5,15 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+const connectionString =
+  process.env.DATABASE_URL_POOLED ?? process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("Database connection string is not configured.");
+}
+
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!,
+  connectionString,
 });
 
 export const prisma =
