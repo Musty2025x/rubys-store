@@ -67,9 +67,36 @@ ENV PATH="/app/node_modules/.bin:${PATH}"
 
 CMD ["prisma", "migrate", "deploy"]
 
+# ==========================================
+# Install production dependencies for seeder
+# ==========================================
+FROM base AS seed-deps
+
+COPY package.json package-lock.json ./
+
+RUN npm ci --omit=dev \
+    && npm install --no-save --package-lock=false tsx@4.23.15
+
 
 # ==========================================
-# Stage 6: Production application
+# Stage 6: RUBYS product seeder
+# ==========================================
+FROM base AS seeder
+
+COPY --from=seed-deps /app/node_modules ./node_modules
+
+COPY --from=builder /app/src/generated/prisma ./src/generated/prisma
+
+COPY prisma/seed.ts ./prisma/seed.ts
+
+ENV PATH="/app/node_modules/.bin:${PATH}"
+ENV NODE_ENV=production
+
+CMD ["tsx", "prisma/seed.ts"]
+
+
+# ==========================================
+# Stage 7: Production application
 # ==========================================
 FROM node:22-bookworm-slim AS runner
 

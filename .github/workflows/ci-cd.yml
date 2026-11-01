@@ -98,3 +98,26 @@ jobs:
           labels: ${{ steps.migrator_meta.outputs.labels }}
           cache-from: type=gha,scope=migrator
           cache-to: type=gha,scope=migrator,mode=max
+      
+      # Seeder image metadata
+      - name: Extract seeder image metadata
+        id: seeder_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/musty2025x/rubys-store-seeder
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+
+      # Build and publish RUBYS product seeder
+      - name: Build and publish seeder image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: seeder
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.seeder_meta.outputs.tags }}
+          labels: ${{ steps.seeder_meta.outputs.labels }}
+          cache-from: type=gha,scope=seeder
+          cache-to: type=gha,scope=seeder,mode=max
