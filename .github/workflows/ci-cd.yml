@@ -174,7 +174,7 @@ jobs:
           set -Eeuo pipefail
 
           DEPLOY_SCRIPT=$(cat <<EOF
-          set -Eeuo pipefail
+          set -eu
 
           cd /home/ubuntu/rubys-deployment
 
