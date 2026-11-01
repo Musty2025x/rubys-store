@@ -32,9 +32,7 @@ resource "aws_iam_role" "github_deploy" {
         Condition = {
           StringEquals = {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:Musty2025x/rubys-store:ref:refs/heads/main"
+            "token.actions.githubusercontent.com:sub" = "repo:Musty2025x@220731675/rubys-store@1439510216:ref:refs/heads/main"
           }
         }
       }
