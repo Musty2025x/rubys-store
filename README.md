@@ -1,396 +1,601 @@
-# RUBYS — AWS DevOps Deployment Project
+# RUBYS --- Premium African Haircare Store
 
-**Automated CI/CD deployment of a containerized Next.js e-commerce application to AWS EC2 using Terraform, Docker Compose, GitHub Actions, GitHub Container Registry and AWS Systems Manager.**
+RUBYS is a premium organic African haircare e-commerce platform built
+with Next.js, PostgreSQL, Docker, and AWS.
 
-[![CI/CD](https://github.com/Musty2025x/rubys-store/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Musty2025x/rubys-store/actions/workflows/ci-cd.yml)
+**Live website:** https://rubys.mustydevops.com.ng\
+**Repository:** https://github.com/Musty2025x/rubys-store\
+**AWS region:** `us-east-1`
 
-**Live application:** https://rubys.mustydevops.com.ng
-**Repository:** https://github.com/Musty2025x/rubys-store
+## Table of contents
 
----
+-   [Overview](#overview)
+-   [Architecture](#architecture)
+-   [Technology stack](#technology-stack)
+-   [Application services](#application-services)
+-   [CI/CD workflow](#cicd-workflow)
+-   [Infrastructure and deployment](#infrastructure-and-deployment)
+-   [Repository structure](#repository-structure)
+-   [Local development](#local-development)
+-   [Environment and secrets](#environment-and-secrets)
+-   [Database operations](#database-operations)
+-   [Operational commands](#operational-commands)
+-   [Security](#security)
+-   [Next steps](#next-steps)
 
-## 1. Project Overview
+------------------------------------------------------------------------
 
-RUBYS is a premium organic African haircare e-commerce platform. This project demonstrates how to provision cloud infrastructure, containerize a full-stack application, automate image builds and deploy application updates securely to AWS.
+## Overview
 
-The deployment pipeline is designed to reduce manual intervention, maintain persistent database storage and support repeatable application releases.
+RUBYS provides a digital storefront for premium organic African haircare
+products. The current deployment runs as Docker containers on AWS EC2.
 
-### Project objectives
+The project demonstrates:
 
-- Provision AWS infrastructure using Terraform.
-- Containerize the Next.js application and supporting database tooling.
-- Build and publish Docker images automatically.
-- Implement CI/CD with GitHub Actions.
-- Authenticate GitHub Actions to AWS using OpenID Connect (OIDC).
-- Execute remote deployment commands through AWS Systems Manager.
-- Apply Prisma database migrations during deployments.
-- Serve the application over HTTPS.
-- Keep PostgreSQL inaccessible directly from the public internet.
+-   A Next.js application packaged as a production Docker image.
+-   PostgreSQL 17 and Prisma for persistent data and schema migrations.
+-   Separate Docker images for the application, database migrator, and
+    one-time product seeder.
+-   Terraform-managed AWS infrastructure.
+-   AWS Secrets Manager for runtime credentials.
+-   GitHub Actions for validation, image publishing, and deployment.
+-   GitHub OIDC for short-lived AWS role credentials.
+-   AWS Systems Manager (SSM) Run Command for deployment without
+    SSH-based file copying.
+-   Caddy as the HTTPS reverse proxy.
 
-## 2. Technology Stack
+## Architecture
 
-| Area | Technology |
-|---|---|
-| Application | Next.js, React, TypeScript |
-| Runtime | Node.js 22 |
-| Database | PostgreSQL 17 |
-| ORM | Prisma |
-| Cloud provider | AWS |
-| Infrastructure as Code | Terraform |
-| Compute | Amazon EC2 |
-| Operating system | Ubuntu 24.04 |
-| Containerization | Docker |
-| Container orchestration | Docker Compose |
-| Image registry | GitHub Container Registry |
-| CI/CD | GitHub Actions |
-| Cloud authentication | AWS IAM OIDC |
-| Remote deployment | AWS Systems Manager |
-| Reverse proxy | Caddy |
-| TLS | Let's Encrypt |
-| Domain | rubys.mustydevops.com.ng |
+### Runtime architecture
 
-## 3. System Architecture
-
-The application follows a container-based deployment architecture.
-
-### CI/CD workflow
-
-1. A developer pushes code to the `main` branch.
-2. GitHub Actions checks out the repository.
-3. Dependencies are installed and Prisma Client is generated.
-4. ESLint and TypeScript checks are executed.
-5. Docker Buildx builds the application, migrator and seeder images.
-6. Images are published to GitHub Container Registry.
-7. GitHub Actions authenticates to AWS through OIDC.
-8. AWS Systems Manager sends the deployment command to EC2.
-9. EC2 pulls the application and migrator images for the exact Git commit.
-10. Prisma migrations are applied.
-11. The Next.js application and Caddy are started or updated.
-12. An HTTPS health check verifies the deployment.
-
-### Architecture diagram
-
-```mermaid
-flowchart TD
-    A[Developer Pushes to GitHub] --> B[GitHub Actions]
-    B --> C[Install Dependencies]
-    C --> D[Prisma Generate]
-    D --> E[ESLint and TypeScript]
-    E --> F[Build Docker Images]
-    F --> G[Publish Images to GHCR]
-    G --> H[GitHub OIDC Authentication]
-    H --> I[AWS Systems Manager]
-    I --> J[AWS EC2]
-
-    J --> K[Pull Application Image]
-    J --> L[Pull Migrator Image]
-    K --> M[Next.js Container]
-    L --> N[Prisma Migration]
-    N --> O[(PostgreSQL)]
-    M --> O
-    M --> P[Caddy Reverse Proxy]
-    P --> Q[HTTPS / Let's Encrypt]
-    Q --> R[Customers and Admin]
+``` mermaid
+flowchart TB
+    Customer[Customer browser]
+    DNS[DNS: rubys.mustydevops.com.ng]
+    Caddy[Caddy reverse proxy<br/>HTTP 80 / HTTPS 443]
+    App[Next.js application<br/>Docker container :3000]
+    DB[(PostgreSQL 17<br/>Docker named volume)]
+    Customer --> DNS --> Caddy
+    Caddy --> App
+    App --> DB
 ```
 
-## 4. AWS Infrastructure
+Caddy terminates HTTPS and reverse-proxies requests to Next.js over the
+private Docker network. PostgreSQL is not published to the public
+internet.
 
-The infrastructure is provisioned and managed using Terraform.
+### CI/CD and infrastructure architecture
 
-| Resource | Configuration |
-|---|---|
-| AWS Region | us-east-1 |
-| EC2 instance | t3.small |
-| Operating system | Ubuntu 24.04 |
-| Root storage | 20 GB encrypted gp3 |
-| Public addressing | Elastic IP |
-| Instance access | AWS Systems Manager |
-| IAM instance role | AmazonSSMManagedInstanceCore |
-| Security group | Restricted SSH, public HTTP/HTTPS |
-| Domain | rubys.mustydevops.com.ng |
+``` mermaid
+flowchart TB
+    Developer[Developer]
+    GitHub[GitHub repository<br/>main branch]
+    Actions[GitHub Actions]
+    CI[npm ci<br/>Prisma generate<br/>Lint / typecheck / build]
+    GHCR[GitHub Container Registry]
+    OIDC[GitHub OIDC]
+    IAM[AWS deployment IAM role]
+    SSM[AWS Systems Manager<br/>Run Command]
+    EC2[AWS EC2 instance]
+    Secrets[AWS Secrets Manager]
+    Compose[Docker Compose]
+    Migrator[Prisma migrate deploy]
+    App[Next.js app]
+    Caddy[Caddy HTTPS proxy]
+    DB[(PostgreSQL 17)]
 
-### Network security
-
-The security group allows:
-
-- TCP 22 — SSH from an authorised IP address.
-- TCP 80 — HTTP traffic for web access and certificate management.
-- TCP 443 — HTTPS traffic.
-
-PostgreSQL port 5432 and Next.js port 3000 are not exposed through public inbound security group rules.
-
-The application and database communicate over a private Docker network.
-
-## 5. Container Architecture
-
-Docker Compose manages the application services on EC2.
-
-| Container | Purpose |
-|---|---|
-| rubys-app | Next.js application |
-| rubys-postgres | PostgreSQL database |
-| rubys-caddy | Reverse proxy and HTTPS |
-| Migrator | Applies Prisma database migrations |
-| Seeder | Populates initial product catalogue data |
-
-### Persistent storage
-
-PostgreSQL uses a named Docker volume:
-
-`rubys_postgres_data`
-
-This keeps database data separate from the application container lifecycle.
-
-The database is not exposed directly to the internet.
-
-### Application images
-
-Images are published to GitHub Container Registry:
-
-- `ghcr.io/musty2025x/rubys-store`
-- `ghcr.io/musty2025x/rubys-store-migrator`
-- `ghcr.io/musty2025x/rubys-store-seeder`
-
-Application and migrator deployment images use full Git commit SHA tags so that a deployment can identify the exact source revision.
-
-The seeder image is built and published separately. Product seeding is not part of every deployment.
-
-## 6. CI/CD Pipeline
-
-The pipeline is defined in:
-
-`.github/workflows/ci-cd.yml`
-
-### Build and validation stage
-
-- Checkout source code.
-- Set up Node.js 22.
-- Install dependencies with `npm ci`.
-- Generate Prisma Client.
-- Run ESLint.
-- Run TypeScript type checking.
-- Build Docker images using Docker Buildx.
-- Publish images to GHCR.
-
-### Deployment stage
-
-The deployment job runs only after a successful build on pushes to `main`.
-
-It uses:
-
-- GitHub Actions OIDC.
-- AWS IAM role assumption.
-- AWS Systems Manager Run Command.
-- Docker Compose.
-- Prisma Migrate Deploy.
-- HTTPS health checks.
-
-### Deployment sequence
-
-```bash
-docker compose -f docker-compose.ec2.yml pull app migrator
-
-docker compose -f docker-compose.ec2.yml \
-  --profile migration run --rm migrator
-
-docker compose -f docker-compose.ec2.yml up -d app caddy
+    Developer --> GitHub --> Actions --> CI --> GHCR
+    Actions --> OIDC --> IAM --> SSM --> EC2
+    GHCR --> Compose
+    SSM --> Compose
+    Secrets --> EC2
+    Compose --> Migrator --> DB
+    Compose --> App
+    Compose --> Caddy
+    Caddy --> App
+    App --> DB
 ```
 
-The deployment script also checks the public HTTPS endpoint and reports a failure if the application does not become healthy within the configured retry period.
+Terraform provisions AWS resources and IAM permissions. EC2 bootstrap
+installs Docker, Docker Compose, AWS CLI v2, and supporting packages;
+retrieves runtime secrets from Secrets Manager; writes protected
+environment files; installs the Compose and Caddy configuration; and
+starts PostgreSQL.
 
-## 7. Security Implementation
+GitHub Actions then updates the application containers through SSM.
 
-Security is an important part of this project.
+## Technology stack
 
-### GitHub OIDC
+  -----------------------------------------------------------------------
+  Area                    Technology              Responsibility
+  ----------------------- ----------------------- -----------------------
+  Application             Next.js, React,         Storefront and
+                          TypeScript              application routes
 
-GitHub Actions assumes a dedicated IAM deployment role through OIDC.
+  Styling                 Tailwind CSS            Responsive user
+                                                  interface
 
-This avoids storing permanent AWS access keys in GitHub repository secrets.
+  Runtime                 Node.js 22              Application runtime
 
-The IAM trust policy restricts access to the intended GitHub repository and `main` branch identity.
+  Database                PostgreSQL 17           Persistent application
+                                                  data
 
-### Least privilege
+  ORM and migrations      Prisma 7                Database client and
+                                                  schema migrations
 
-The GitHub deployment role is granted permissions for:
+  Containers              Docker, Docker Compose  Build and run services
 
-- Sending SSM commands to the designated EC2 instance.
-- Retrieving SSM command execution results.
+  Edge / HTTPS            Caddy 2                 TLS certificates and
+                                                  reverse proxy
 
-The EC2 instance has its own IAM role for Systems Manager connectivity.
+  Cloud                   AWS EC2                 Application host
 
-### Secrets management
+  Infrastructure as Code  Terraform               EC2, networking, IAM,
+                                                  Elastic IP, and secret
+                                                  resource
 
-Application secrets are maintained in protected EC2 environment files and are not committed to the Git repository.
+  Runtime secrets         AWS Secrets Manager     Application and
+                                                  database credentials
 
-Examples include:
+  Deployment control      AWS Systems Manager     Runs deployment
+                                                  commands on EC2
 
-- Database connection strings.
-- Authentication secret.
-- Administrator password hash.
-- Cron secret.
+  CI/CD                   GitHub Actions          Validation, image
+                                                  publishing, and
+                                                  deployment
 
-Never commit `.env` files, Terraform state files, private keys or credentials.
+  Image registry          GitHub Container        Stores application,
+                          Registry                migrator, and seeder
+                                                  images
 
-## 8. Repository Structure
+  CI identity             GitHub OIDC             Short-lived AWS role
+                                                  assumption
+  -----------------------------------------------------------------------
 
-```text
+## Application services
+
+The EC2 Compose stack defines these services:
+
+  ---------------------------------------------------------------------------------------------
+  Service                 Image / role                                Purpose
+  ----------------------- ------------------------------------------- -------------------------
+  `app`                   `ghcr.io/musty2025x/rubys-store`            Next.js application on
+                                                                      internal port 3000
+
+  `postgres`              `postgres:17-alpine`                        Database stored in a
+                                                                      named Docker volume
+
+  `migrator`              `ghcr.io/musty2025x/rubys-store-migrator`   Runs
+                                                                      `prisma migrate deploy`
+                                                                      as a one-off task
+
+  `seeder`                `ghcr.io/musty2025x/rubys-store-seeder`     Populates initial
+                                                                      catalogue data when
+                                                                      explicitly run
+
+  `caddy`                 `caddy:2-alpine`                            Publishes ports 80 and
+                                                                      443 and proxies to
+                                                                      `app:3000`
+  ---------------------------------------------------------------------------------------------
+
+Only Caddy publishes web ports to the host. PostgreSQL port `5432` is
+not exposed publicly.
+
+## CI/CD workflow
+
+The workflow is defined in `.github/workflows/ci-cd.yml`.
+
+### Pull requests
+
+Pull requests targeting `main` run the CI/build validation path. The
+workflow installs dependencies, generates the Prisma client, runs
+configured static checks, and builds the application.
+
+### Pushes to `main`
+
+A push to `main` runs the build and deployment pipeline:
+
+1.  Check out the repository and install dependencies with `npm ci`.
+2.  Generate the Prisma client.
+3.  Run lint and TypeScript checks.
+4.  Build the Next.js application.
+5.  Build and publish the application, migrator, and seeder images to
+    GHCR.
+6.  Tag application and migrator images with the commit SHA and
+    `latest`.
+7.  Assume the AWS deployment role through GitHub OIDC.
+8.  Send an AWS Systems Manager command to the EC2 instance.
+9.  Pull the matching application and migrator images.
+10. Run Prisma migrations with `prisma migrate deploy`.
+11. Start/update the application and Caddy containers.
+12. Check the HTTPS endpoint and report deployment success or failure.
+
+The application and migrator use the commit SHA as the release tag,
+making each deployment traceable to its source commit.
+
+### Deployment flow
+
+``` text
+Git push to main
+      |
+      v
+GitHub Actions CI
+      |
+      +--> npm ci
+      +--> Prisma generate
+      +--> lint and typecheck
+      +--> Next.js build
+      |
+      v
+Build Docker images
+      |
+      v
+Publish images to GHCR
+      |
+      v
+GitHub OIDC assumes AWS deploy role
+      |
+      v
+SSM Run Command on EC2
+      |
+      v
+Pull app + migrator images
+      |
+      v
+Run prisma migrate deploy
+      |
+      v
+docker compose up -d app caddy
+      |
+      v
+HTTPS health check
+```
+
+### Container images
+
+``` text
+ghcr.io/musty2025x/rubys-store:latest
+ghcr.io/musty2025x/rubys-store-migrator:latest
+ghcr.io/musty2025x/rubys-store-seeder:latest
+```
+
+For a specific deployment, the application and migrator use the commit
+SHA tag supplied by the workflow. The seeder is a separate one-time
+operational image and is not run on every application deployment.
+
+## Infrastructure and deployment
+
+### AWS resources
+
+The current deployment uses:
+
+-   AWS region `us-east-1`.
+-   Ubuntu 24.04 EC2 instance (`t3.small`).
+-   20 GB encrypted gp3 root volume.
+-   Elastic IP and DNS record for `rubys.mustydevops.com.ng`.
+-   Security group allowing web traffic on ports 80 and 443.
+-   SSH restricted to the configured administrator CIDR; deployment uses
+    SSM.
+-   EC2 instance profile with SSM permissions and access to the RUBYS
+    application secret.
+-   GitHub OIDC provider and a deployment IAM role scoped for SSM
+    deployment.
+-   AWS Secrets Manager secret named `rubys/dev/application`.
+
+Terraform configuration is under `terraform/environments/dev/`.
+
+### EC2 bootstrap
+
+Terraform renders `terraform/environments/dev/user-data.sh` with the AWS
+region, secret ARN, domain, Compose configuration, and Caddy
+configuration.
+
+The bootstrap process:
+
+1.  Installs Docker, Docker Compose v2, AWS CLI v2, `jq`, `curl`, and
+    supporting packages.
+2.  Creates `/home/ubuntu/rubys-deployment`.
+3.  Writes `docker-compose.ec2.yml` and `Caddyfile`.
+4.  Retrieves the secret from AWS Secrets Manager using the EC2 instance
+    role.
+5.  Creates `.env.ec2.db` and `.env.ec2.app` with restrictive file
+    permissions.
+6.  Validates the Compose configuration.
+7.  Starts PostgreSQL and waits for its health check.
+
+Secret values are not stored in the repository or embedded in the
+bootstrap script.
+
+### Deployment access
+
+GitHub Actions does not require a long-lived SSH private key for
+deployment. It uses OIDC to assume the AWS deployment role, then SSM Run
+Command to execute release steps on EC2.
+
+This separates provisioning (Terraform), runtime configuration
+(bootstrap and Secrets Manager), and application release (GitHub
+Actions, GHCR, and SSM).
+
+## Repository structure
+
+Key project paths:
+
+``` text
 rubys-store/
-│
 ├── .github/
 │   └── workflows/
 │       └── ci-cd.yml
-│
 ├── prisma/
 │   ├── migrations/
-│   ├── schema.prisma
 │   └── seed.ts
-│
+├── scripts/
+│   └── create-rubys-secret.sh
 ├── src/
 │   ├── app/
 │   ├── components/
 │   ├── context/
 │   ├── data/
+│   ├── generated/
 │   └── lib/
-│
 ├── terraform/
 │   └── environments/
 │       └── dev/
-│           ├── main.tf
-│           ├── providers.tf
-│           ├── variables.tf
-│           ├── outputs.tf
-│           ├── security.tf
-│           ├── iam.tf
 │           ├── github-oidc.tf
-│           └── user-data.sh
-│
+│           ├── iam.tf
+│           ├── main.tf
+│           ├── networking.tf
+│           ├── outputs.tf
+│           ├── providers.tf
+│           ├── secrets.tf
+│           ├── security.tf
+│           ├── variables.tf
+│           ├── user-data.sh
+│           └── templates/
+│               ├── Caddyfile
+│               └── docker-compose.ec2.yml
 ├── Dockerfile
-├── docker-compose.yml
-├── package.json
+├── docker-compose.ec2.yml
 ├── prisma.config.ts
+├── package.json
 └── README.md
 ```
 
-The EC2 deployment files are maintained separately on the server in `~/rubys-deployment`.
+This is a representative structure. Keep it synchronized with the actual
+repository as files are added or renamed.
 
-## 9. Deployment Verification
+## Local development
 
-The live deployment has been verified through the GitHub Actions workflow.
+### Prerequisites
 
-Confirmed results include:
+-   Node.js 22
+-   npm
+-   Docker and Docker Compose v2
+-   Git
+-   Local PostgreSQL or a Docker-based development database
 
-- Successful GitHub OIDC authentication.
-- Successful AWS SSM command execution.
-- Successful application and migrator image pulls.
-- Successful Prisma migration execution.
-- Successful application restart.
-- Successful HTTPS health check.
+### Install dependencies
 
-The migration command reported:
-
-```text
-5 migrations found in prisma/migrations
-
-No pending migrations to apply.
+``` bash
+npm ci
 ```
 
-Live application:
+### Configure local environment
 
-https://rubys.mustydevops.com.ng
+Create a local environment file using `.env.example` as a reference.
+Supply local-only database connection strings and required application
+configuration.
 
-## 10. Operational Commands
+Do not copy production secrets from AWS Secrets Manager into the
+repository or commit local `.env` files.
 
-Connect to EC2:
+### Generate Prisma client
 
-```bash
-ssh -i ~/.ssh/rubys-ec2-key.pem \
-  ubuntu@YOUR_EC2_PUBLIC_IP
+``` bash
+npx prisma generate
 ```
 
-Navigate to deployment directory:
+### Run the development server
 
-```bash
-cd ~/rubys-deployment
+``` bash
+npm run dev
 ```
 
-View running containers:
+Open `http://localhost:3000`.
 
-```bash
-docker compose -f docker-compose.ec2.yml ps
+### Validate the application
+
+``` bash
+npm run lint
+npx tsc --noEmit
+npm run build
 ```
 
-View application logs:
+Use the scripts actually defined in `package.json`; update this section
+if script names change.
 
-```bash
-docker logs -f rubys-app
+## Environment and secrets
+
+Production credentials are stored in AWS Secrets Manager under:
+
+``` text
+rubys/dev/application
 ```
 
-View PostgreSQL logs:
+The secret supplies these runtime configuration fields:
 
-```bash
-docker logs -f rubys-postgres
+-   `POSTGRES_DB`
+-   `POSTGRES_USER`
+-   `POSTGRES_PASSWORD`
+-   `AUTH_SECRET`
+-   `ADMIN_EMAIL`
+-   `ADMIN_PASSWORD_HASH`
+-   `CRON_SECRET`
+
+The bootstrap creates separate database and application environment
+files on EC2. These files are not source-controlled.
+
+### GitHub Actions configuration
+
+The deployment workflow expects this GitHub Actions secret:
+
+  -----------------------------------------------------------------------
+  Name                                Purpose
+  ----------------------------------- -----------------------------------
+  `AWS_DEPLOY_ROLE_ARN`               ARN of the AWS IAM role assumed
+                                      through GitHub OIDC
+
+  -----------------------------------------------------------------------
+
+The repository's OIDC trust policy must match the intended GitHub
+repository and branch. Do not store AWS access keys or application
+passwords in the workflow file.
+
+Never put secret values in this README.
+
+## Database operations
+
+### Migrations
+
+Production schema changes are applied by the migrator image during
+deployment:
+
+``` bash
+prisma migrate deploy
 ```
 
-View Caddy logs:
+Create and review migrations in development, commit migration files
+under `prisma/migrations/`, and deploy them through the pipeline.
 
-```bash
-docker logs -f rubys-caddy
+Do not use `prisma migrate dev`, `prisma db push`, or
+`prisma migrate reset` against the production EC2 database.
+
+### Initial product seeding
+
+The seeder is a one-off operation. It has populated the initial four
+catalogue products on the EC2 database and is not part of every
+application deployment.
+
+For a fresh environment, first verify the target database and confirm
+that records do not already exist. Then run:
+
+``` bash
+cd /home/ubuntu/rubys-deployment
+sudo docker compose -f docker-compose.ec2.yml --profile seed run --rm seeder
 ```
 
-Check application HTTPS:
+Do not rerun the seed command against a populated production database
+unless the seed script has been reviewed and is safe to run repeatedly.
 
-```bash
+### Persistence and backups
+
+PostgreSQL data is stored in the Docker named volume
+`rubys_postgres_data`. Do not remove this volume during routine
+deployments.
+
+The EC2-local Docker volume is not a substitute for an off-instance
+backup strategy. Configure automated database backups and test
+restoration. Replacing or destroying the EC2 instance can result in loss
+of data stored only on its local volume.
+
+## Operational commands
+
+Run these commands through an authorized SSM session or SSM Run Command.
+The deployment directory on EC2 is `/home/ubuntu/rubys-deployment`.
+
+### Check containers
+
+``` bash
+cd /home/ubuntu/rubys-deployment
+sudo docker compose -f docker-compose.ec2.yml ps
+```
+
+### View application logs
+
+``` bash
+sudo docker logs rubys-app --tail 100
+```
+
+### View PostgreSQL logs
+
+``` bash
+sudo docker logs rubys-postgres --tail 100
+```
+
+### View Caddy logs
+
+``` bash
+sudo docker logs rubys-caddy --tail 100
+```
+
+### Check the live HTTPS endpoint
+
+``` bash
 curl -I https://rubys.mustydevops.com.ng
 ```
 
-Validate Compose configuration:
+The homepage has been verified to return HTTP `200`.
 
-```bash
-docker compose -f docker-compose.ec2.yml config --quiet
+### Inspect disk usage
+
+``` bash
+df -h
+sudo docker system df
 ```
 
-**Database safety:** Never use `docker compose down -v`, `prisma migrate reset` or destructive database commands on the production deployment. Protect the PostgreSQL volume and maintain verified backups.
+Do not run broad Docker prune commands or remove named volumes without
+understanding their impact on running services and persistent database
+data.
 
-## 11. Future Improvements
+## Security
 
-Potential next improvements include:
+-   Keep `.env`, `.env.local`, `.env.production.local`, `.env.docker`,
+    Terraform state, private keys, and generated credentials out of Git.
+-   Use AWS Secrets Manager for runtime secrets.
+-   Use the EC2 instance role to retrieve secrets; do not embed AWS
+    access keys in user data.
+-   Use GitHub OIDC and short-lived role credentials for CI/CD.
+-   Keep PostgreSQL private on the Docker network; do not open port 5432
+    to the internet.
+-   Restrict SSH ingress to a trusted administrator IP range. Use SSM
+    for deployment operations.
+-   Keep the EC2 root volume encrypted.
+-   Review Terraform plans before applying infrastructure changes.
+-   Never run destructive Terraform or Docker volume commands against
+    the live environment without a verified backup and recovery plan.
+-   Redact secrets from logs, screenshots, and support output.
 
-- Automated database backups and restore testing.
-- CloudWatch metrics, logs and alarms.
-- Container and dependency vulnerability scanning.
-- Automated rollback to a previously deployed image.
-- Application integration and end-to-end tests.
-- Improved deployment concurrency and release controls.
-- Centralised secrets management using AWS Secrets Manager.
-- Infrastructure monitoring and cost optimisation.
-- Deployment notifications.
+## Next steps
 
-These are planned improvements, not features claimed as already implemented.
+The storefront is live, and the initial product catalogue has been
+seeded. A successful homepage response confirms that the web entry point
+is serving the application; it does not prove every customer or
+administrator workflow is correct.
 
-## 12. Key DevOps Skills Demonstrated
+Recommended next steps:
 
-This project demonstrates practical experience with:
+1.  Test admin authentication and access control.
+2.  Test product listing, product detail pages, cart behavior, and order
+    creation.
+3.  Verify Paystack configuration and complete a controlled test-mode
+    payment.
+4.  Verify international card and shipping flows before enabling live
+    transactions.
+5.  Configure automated PostgreSQL backups and perform a restore test.
+6.  Add application-level monitoring, alerting, and resource/disk
+    monitoring.
+7.  Add automated integration tests for checkout and order processing.
+8.  Document a tested recovery procedure for EC2 replacement and
+    database restoration.
 
-- AWS infrastructure provisioning using Terraform.
-- IAM roles and least-privilege access.
-- GitHub Actions CI/CD.
-- GitHub OIDC authentication.
-- AWS Systems Manager.
-- Docker multi-stage builds.
-- Docker Compose deployments.
-- GitHub Container Registry.
-- PostgreSQL container persistence.
-- Prisma database migrations.
-- Reverse proxy configuration and HTTPS.
-- Production deployment troubleshooting.
+------------------------------------------------------------------------
 
----
+## Project links
 
-**Project:** RUBYS — AWS DevOps Deployment
+-   **Live storefront:** https://rubys.mustydevops.com.ng
+-   **GitHub repository:** https://github.com/Musty2025x/rubys-store
+-   **AWS region:** `us-east-1`
+-   **Container registry:** https://github.com/Musty2025x?tab=packages
 
-**Repository:** https://github.com/Musty2025x/rubys-store
-
-**Live URL:** https://rubys.mustydevops.com.ng
-
-*Built as a practical cloud infrastructure and DevOps portfolio project.*
+> Keep this README aligned with the actual workflow, Terraform
+> resources, Compose configuration, and application scripts. Update the
+> documentation whenever the deployment architecture changes.
