@@ -1,3 +1,4 @@
+
 name: RUBYS CI/CD Pipeline
 
 on:
@@ -44,15 +45,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Extract Docker image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/musty2025x/rubys-store
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha
-
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -61,13 +53,48 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and publish Docker image
+      # Application image metadata
+      - name: Extract application image metadata
+        id: app_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/musty2025x/rubys-store
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+
+      # Build and publish Next.js application
+      - name: Build and publish application image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
+          target: runner
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ${{ steps.app_meta.outputs.tags }}
+          labels: ${{ steps.app_meta.outputs.labels }}
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,scope=app,mode=max
+
+      # Migrator image metadata
+      - name: Extract migrator image metadata
+        id: migrator_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/musty2025x/rubys-store-migrator
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+
+      # Build and publish Prisma migrator
+      - name: Build and publish migrator image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: migrator
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.migrator_meta.outputs.tags }}
+          labels: ${{ steps.migrator_meta.outputs.labels }}
+          cache-from: type=gha,scope=migrator
+          cache-to: type=gha,scope=migrator,mode=max

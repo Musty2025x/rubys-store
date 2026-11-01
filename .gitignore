@@ -67,3 +67,12 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Terraform local state and configuration
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+*.tfplan
+crash.log

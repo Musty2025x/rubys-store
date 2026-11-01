@@ -1,16 +1,30 @@
+# Dependencies and build output
 node_modules
 .next
+out
+dist
+build
+
+# Version control and deployment tools
 .git
 .github
 .vercel
+terraform/
+**/.terraform/
+
+# Tests and reports
 coverage
 playwright-report
 test-results
+tests
 
+# Environment files and secrets
 .env
 .env.*
 !.env.example
 
+# Logs and temporary files
 npm-debug.log*
 .DS_Store
 *.tsbuildinfo
+*.log
