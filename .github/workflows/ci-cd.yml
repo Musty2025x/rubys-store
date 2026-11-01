@@ -168,7 +168,7 @@ jobs:
       - name: Deploy application through AWS Systems Manager
         shell: bash
         env:
-          INSTANCE_ID: i-06356f3a6aab4543a
+          INSTANCE_ID: i-0afef0e2c50ea4e53
           IMAGE_TAG: sha-${{ github.sha }}
         run: |
           set -Eeuo pipefail
