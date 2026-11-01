@@ -42,7 +42,15 @@ resource "aws_instance" "rubys" {
     http_tokens   = "required"
   }
 
-  user_data = file("${path.module}/user-data.sh")
+  user_data = templatefile("${path.module}/user-data.sh", {
+    aws_region   = var.aws_region
+    secret_arn   = aws_secretsmanager_secret.rubys.arn
+    domain       = var.domain
+    compose_file = file("${path.module}/templates/docker-compose.ec2.yml")
+    caddy_file   = file("${path.module}/templates/Caddyfile")
+  })
+
+  user_data_replace_on_change = false
 
   tags = {
     Name = "${var.project_name}-${var.environment}-server"

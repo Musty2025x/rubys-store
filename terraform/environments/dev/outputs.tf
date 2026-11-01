@@ -22,3 +22,8 @@ output "application_url" {
   description = "RUBYS application URL"
   value       = "http://${aws_eip.rubys.public_ip}"
 }
+
+output "application_secret_arn" {
+  description = "RUBYS application secret ARN"
+  value       = aws_secretsmanager_secret.rubys.arn
+}

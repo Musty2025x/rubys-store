@@ -1,0 +1,4 @@
+rubys.mustydevops.com.ng {
+    encode zstd gzip
+    reverse_proxy app:3000
+}

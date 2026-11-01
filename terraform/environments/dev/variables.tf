@@ -50,3 +50,9 @@ variable "ssh_allowed_cidr" {
   description = "Public IP allowed to SSH into EC2"
   type        = string
 }
+
+variable "domain" {
+  description = "RUBYS production domain"
+  type        = string
+  default     = "rubys.mustydevops.com.ng"
+}

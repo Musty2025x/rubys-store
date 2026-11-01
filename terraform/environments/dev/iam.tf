@@ -39,3 +39,25 @@ resource "aws_iam_instance_profile" "rubys_ec2" {
     Name = "${var.project_name}-${var.environment}-ec2-instance-profile"
   }
 }
+
+# Allow EC2 to retrieve RUBYS runtime secrets
+resource "aws_iam_role_policy" "rubys_secrets" {
+  name = "rubys-secrets-manager-read"
+  role = aws_iam_role.rubys_ec2_ssm.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = [
+          aws_secretsmanager_secret.rubys.arn
+        ]
+      }
+    ]
+  })
+}

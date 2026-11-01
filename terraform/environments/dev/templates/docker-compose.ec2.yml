@@ -1,0 +1,85 @@
+name: rubys
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: rubys-postgres
+    restart: unless-stopped
+    env_file:
+      - .env.ec2.db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - rubys-network
+
+  app:
+    image: ghcr.io/musty2025x/rubys-store:${RUBYS_IMAGE_TAG:-latest}
+    container_name: rubys-app
+    restart: unless-stopped
+    env_file:
+      - .env.ec2.app
+    expose:
+      - "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rubys-network
+
+  migrator:
+    image: ghcr.io/musty2025x/rubys-store-migrator:${RUBYS_IMAGE_TAG:-latest}
+    container_name: rubys-migrator
+    profiles:
+      - migration
+    env_file:
+      - .env.ec2.app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rubys-network
+
+  seeder:
+    image: ghcr.io/musty2025x/rubys-store-seeder:latest
+    container_name: rubys-seeder
+    profiles:
+      - seed
+    env_file:
+      - .env.ec2.app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rubys-network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: rubys-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    networks:
+      - rubys-network
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  rubys-network:
+    driver: bridge
